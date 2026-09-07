@@ -5,6 +5,7 @@
     "noUncheckedIndexedAccess": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "src/*"
@@ -16,5 +17,9 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "supabase"
   ]
 }
