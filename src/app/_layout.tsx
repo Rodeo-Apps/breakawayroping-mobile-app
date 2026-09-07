@@ -46,8 +46,11 @@ export default function RootLayout() {
               <Stack.Screen name="auth" options={{ headerShown: false }} />
               <Stack.Screen name="analyze" options={{ title: 'Video Analysis', presentation: 'modal' }} />
               <Stack.Screen name="premium" options={{ title: 'Go Premium', presentation: 'modal' }} />
-              <Stack.Screen name="team-analysis" options={{ title: 'Team Analysis' }} />
-              <Stack.Screen name="crhsr" options={{ title: 'College Rodeo' }} />
+              <Stack.Screen name="team-analysis" options={{ headerShown: false }} />
+              <Stack.Screen name="crhsr" options={{ headerShown: false }} />
+              <Stack.Screen name="event/[eventId]" options={{ title: 'Event' }} />
+              <Stack.Screen name="horse/[horseId]" options={{ title: 'Details' }} />
+              <Stack.Screen name="add-horse" options={{ title: 'Add', presentation: 'modal' }} />
             </Stack>
           </AuthProvider>
         </QueryClientProvider>

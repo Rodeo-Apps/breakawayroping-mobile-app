@@ -159,6 +159,20 @@ export function CompeteScreen() {
         </View>
       )}
 
+      {(() => {
+        const _vals = runs
+          .map((r: any) => Number(r.time_seconds))
+          .filter((n: number) => !Number.isNaN(n) && n > 0);
+        if (!_vals.length) return null;
+        const _best = Math.min(..._vals);
+        return (
+          <View style={cs.pbBanner}>
+            <Text style={cs.pbLabel}>Personal best</Text>
+            <Text style={cs.pbValue}>{_best}s</Text>
+          </View>
+        );
+      })()}
+
       <TouchableOpacity style={cs.analyzeBtn} onPress={() => router.push('/analyze')}>
         <Text style={cs.analyzeBtnText}>⭐ Analyze a video</Text>
       </TouchableOpacity>
@@ -203,6 +217,9 @@ const cs = StyleSheet.create({
   disabled: { opacity: 0.6 },
   analyzeBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: radius.control, padding: 14, alignItems: 'center' },
   analyzeBtnText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
+  pbBanner: { backgroundColor: colors.card, borderRadius: radius.card, padding: spacing.cardPad, borderWidth: 1, borderColor: colors.accent, gap: 2 },
+  pbLabel: { fontSize: 11, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.8 },
+  pbValue: { fontSize: 28, fontWeight: '800', color: colors.accent },
   empty: { color: colors.muted, textAlign: 'center', marginTop: 24, fontSize: 14 },
   runCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: spacing.cardPad, gap: 4, borderWidth: 1, borderColor: colors.border },
   runPrimary: { fontSize: 18, fontWeight: '700', color: colors.text },
