@@ -33,6 +33,9 @@ module.exports = {
     plugins: ['expo-router', 'expo-video'],
     experiments: { typedRoutes: true },
     extra: {
+      eas: {
+        projectId: "cde584e0-21cf-41b4-af17-b18291532574"
+      },
       domain: "breakawayroping.pro",
       eventType: "breakawayroping",
     },
