@@ -1,5 +1,35 @@
 # Run analysis — Breakaway Roping
 How the AI analysis in this app works, what is wired, and what is not.
+
+## Shipped: OpenAI-vision run analysis (BarrelConnect pattern)
+The app ships an OpenAI-vision analysis flow modeled on BarrelConnect. It works
+today and is independent of the on-device pose pipeline described further below
+(which remains the future, higher-fidelity path).
+
+- **Client** (`src/screens/Analyze`, `src/lib/videoFrames.ts`): extracts up to
+  12 keyframes from the clip with `expo-video-thumbnails`, uploads the clip to
+  the `videos` bucket and the frames to `video-frames`, then invokes an edge
+  function. OpenAI vision reads images, not raw video, so only a few small
+  JPEGs are sent.
+- **Individual mode** — one video → `analyze-video` edge function → a personal
+  critique scored on the seven breakaway criteria (barrier work, horse
+  positioning, loop delivery, catch zone [neck only], rope management, string
+  release, timing) plus legal-catch / barrier-broken flags, strengths,
+  improvements, and drills. Stored in `video_analyses`.
+- **Coach mode** (shown when `profiles.is_coach`) — up to 15 videos →
+  `analyze-team-video` edge function grades every run, tallies shared faults
+  deterministically ("8 ropers breaking the barrier, 3 catching low"), then asks
+  OpenAI to write the squad report over that tally. Stored in
+  `team_video_batches` (schema in migration `007_ai_video_analysis.sql`).
+- **Judging is structured.** Both functions use OpenAI structured outputs
+  (`response_format: json_schema`, strict) so the criteria come back as named
+  fields and coach tallies are meaningful. Counts are computed in code, not by
+  the model. Model/keys are configured via `OPENAI_API_KEY`,
+  `OPENAI_VIDEO_ANALYSIS_MODEL`, `OPENAI_TEAM_REPORT_MODEL`.
+
+The rest of this document describes the on-device pose approach, which is the
+longer-term direction and is not required by the shipped OpenAI-vision flow.
+
 ## The idea
 The contestant records a **walk-around benchmark** — themselves and the
 animal, standing still, head to hooves — before they film any runs. That
