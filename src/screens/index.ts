@@ -4,3 +4,27 @@ export { CompeteScreen } from './Compete';
 export { HorsesScreen } from './Horses';
 export { ProfileScreen } from './Profile';
 export { AnalyzeScreen } from './Analyze';
+
+// Phase 2 — ported discipline-agnostic screens
+export { MarketplaceScreen } from './Marketplace';
+export { CreateListingScreen } from './Marketplace/CreateListing';
+export { ListingDetailScreen } from './Marketplace/ListingDetail';
+export { MessagesScreen } from './Messages';
+export { ChatScreen } from './Messages/Chat';
+export { ArenasScreen } from './Directory/Arenas';
+export { HaulersScreen } from './Directory/Haulers';
+export { SponsorsScreen } from './Directory/Sponsors';
+export { SearchScreen } from './Social/Search';
+export { FollowersScreen } from './Social/Followers';
+export { EditProfileScreen } from './Profile/EditProfile';
+export { UserProfileScreen } from './Profile/UserProfile';
+export { HealthScreen } from './Health';
+export { CoachingScreen } from './Coaching';
+export { ChallengesScreen } from './Challenges';
+export { LeaderboardScreen } from './Leaderboard';
+export { NotificationsScreen } from './Notifications';
+export { SettingsScreen } from './Settings';
+export { SupportScreen } from './Support';
+export { ReelsScreen } from './Reels';
+export { GoLiveScreen } from './GoLive';
+export { MoreScreen } from './More';

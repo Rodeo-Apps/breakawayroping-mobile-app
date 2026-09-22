@@ -51,6 +51,29 @@ export default function RootLayout() {
               <Stack.Screen name="event/[eventId]" options={{ title: 'Event' }} />
               <Stack.Screen name="horse/[horseId]" options={{ title: 'Details' }} />
               <Stack.Screen name="add-horse" options={{ title: 'Add', presentation: 'modal' }} />
+
+              {/* Phase 2 — ported discipline-agnostic feature routes */}
+              <Stack.Screen name="marketplace/index" options={{ title: 'Marketplace' }} />
+              <Stack.Screen name="marketplace/create" options={{ title: 'Sell an item', presentation: 'modal' }} />
+              <Stack.Screen name="marketplace/[id]" options={{ title: 'Listing' }} />
+              <Stack.Screen name="messages/index" options={{ title: 'Messages' }} />
+              <Stack.Screen name="messages/[userId]" options={{ title: 'Chat' }} />
+              <Stack.Screen name="directory/arenas" options={{ title: 'Arenas' }} />
+              <Stack.Screen name="directory/haulers" options={{ title: 'Haulers' }} />
+              <Stack.Screen name="directory/sponsors" options={{ title: 'Sponsors' }} />
+              <Stack.Screen name="search" options={{ title: 'Find ropers' }} />
+              <Stack.Screen name="user/[userId]/index" options={{ title: 'Profile' }} />
+              <Stack.Screen name="user/[userId]/connections" options={{ title: 'Connections' }} />
+              <Stack.Screen name="edit-profile" options={{ title: 'Edit profile', presentation: 'modal' }} />
+              <Stack.Screen name="health" options={{ title: 'Horse health' }} />
+              <Stack.Screen name="coaching" options={{ title: 'Coaching' }} />
+              <Stack.Screen name="challenges" options={{ title: 'Challenges' }} />
+              <Stack.Screen name="leaderboard" options={{ title: 'Leaderboard' }} />
+              <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+              <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+              <Stack.Screen name="support" options={{ title: 'Help & support' }} />
+              <Stack.Screen name="reels" options={{ title: 'Reels' }} />
+              <Stack.Screen name="go-live" options={{ title: 'Go live' }} />
             </Stack>
           </AuthProvider>
         </QueryClientProvider>
