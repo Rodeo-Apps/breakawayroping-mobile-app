@@ -14,11 +14,21 @@ import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, spacing, radius } from '@/constants/theme';
+import { scoreBreakawayRun, loadRulesProfile, formatTime } from '@/lib/scoring';
+
+// Breakaway roping is a WPRA-sanctioned event; resolve WPRA rules for the run.
+const ASSOCIATION_CODE = 'WPRA';
+const EVENT_TYPE = 'breakaway';
 
 type Run = {
   id: string;
   created_at: string;
-  time_seconds: number | string | null;
+  raw_time_ms: number | null;
+  official_time_ms: number | null;
+  total_time: number | string | null;
+  barrier_broken: boolean | null;
+  catch_ok: boolean | null;
+  status: string | null;
   notes: string | null;
 };
 
@@ -30,10 +40,10 @@ export function CompeteScreen() {
   const [showForm, setShowForm] = useState(false);
 
   const [time_seconds, set_time_seconds] = useState('');
-  const [catch_type, set_catch_type] = useState('clean');
+  const [caught, set_caught] = useState(true);
   const [barrier_broken, set_barrier_broken] = useState(false);
-  const [flag_dropped, set_flag_dropped] = useState(false);
-  const [horse_name, set_horse_name] = useState('');
+  const [broke_by_hand, set_broke_by_hand] = useState(false);
+  const [released_cleanly, set_released_cleanly] = useState(true);
   const [notes, set_notes] = useState('');
 
   const loadRuns = useCallback(async () => {
@@ -54,23 +64,62 @@ export function CompeteScreen() {
 
   const resetForm = () => {
     set_time_seconds('');
-    set_catch_type('clean');
+    set_caught(true);
     set_barrier_broken(false);
-    set_flag_dropped(false);
-    set_horse_name('');
+    set_broke_by_hand(false);
+    set_released_cleanly(true);
     set_notes('');
   };
 
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
+
+    // Raw time comes in as seconds from the stopwatch; the engine and the
+    // database both work in milliseconds.
+    const rawTimeMs = time_seconds ? Math.round(Number(time_seconds) * 1000) : null;
+
+    // Resolve the dated rules profile so the barrier penalty is real and citable.
+    const profile = await loadRulesProfile(ASSOCIATION_CODE, EVENT_TYPE);
+    if (!profile) {
+      setSaving(false);
+      Alert.alert(
+        'No rule set',
+        `No ${ASSOCIATION_CODE} rules are seeded for breakaway roping. Cannot score the run.`,
+      );
+      return;
+    }
+
+    let outcome;
+    try {
+      outcome = scoreBreakawayRun(
+        {
+          rawTimeMs,
+          caught,
+          stringBrokeAwayCleanly: released_cleanly,
+          brokeStringByHand: broke_by_hand,
+          barrierBroken: barrier_broken,
+        },
+        profile,
+      );
+    } catch (e: any) {
+      setSaving(false);
+      Alert.alert('Could not score run', e?.message ?? 'Scoring engine error.');
+      return;
+    }
+
+    const officialTimeMs = outcome.officialTimeMs ?? null;
+
+    // Store BOTH the raw time and the penalty-adjusted official time. Stats and
+    // rankings read official_time_ms; raw_time_ms is preserved for review.
     const payload = {
       user_id: user.id,
-      time_seconds: time_seconds ? Number(time_seconds) : null,
-      catch_type,
+      raw_time_ms: rawTimeMs,
+      official_time_ms: officialTimeMs,
+      total_time: officialTimeMs != null ? Math.round(officialTimeMs) / 1000 : null,
+      catch_ok: caught,
       barrier_broken,
-      flag_dropped,
-      horse_name: horse_name || null,
+      status: outcome.status,
       notes: notes || null,
     };
     const { error } = await supabase.from('breakaway_runs').insert(payload);
@@ -79,6 +128,11 @@ export function CompeteScreen() {
       Alert.alert('Could not save', error.message);
       return;
     }
+    // Surface the ruling (with its citation) so the contestant sees the penalty.
+    Alert.alert(
+      officialTimeMs != null ? `${formatTime(officialTimeMs)}` : outcome.status.replace(/_/g, ' '),
+      outcome.explanation,
+    );
     resetForm();
     setShowForm(false);
     loadRuns();
@@ -94,13 +148,13 @@ export function CompeteScreen() {
       </View>
       <Text style={cs.sub}>
         Hand-timed breakaway roping runs stay yours — they are structurally separated from official results and never reach a
-        leaderboard.
+        leaderboard. Barrier penalties are applied automatically under the {ASSOCIATION_CODE} rule book.
       </Text>
 
       {showForm && (
         <View style={cs.form}>
         <View style={cs.field}>
-          <Text style={cs.label}>Time (s)</Text>
+          <Text style={cs.label}>Raw time (s)</Text>
           <TextInput
             style={cs.input}
             value={time_seconds}
@@ -110,37 +164,21 @@ export function CompeteScreen() {
             placeholderTextColor={colors.muted}
           />
         </View>
-        <View style={cs.field}>
-          <Text style={cs.label}>Catch type</Text>
-          <View style={cs.chips}>
-            {(['clean', 'barrier_penalty', 'no_catch'] as const).map((opt) => (
-              <TouchableOpacity
-                key={opt}
-                style={[cs.chip, catch_type === opt && cs.chipActive]}
-                onPress={() => set_catch_type(opt)}
-              >
-                <Text style={[cs.chipText, catch_type === opt && cs.chipTextActive]}>{opt.replace(/_/g, ' ')}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        <View style={cs.toggleRow}>
+          <Text style={cs.label}>Legal catch</Text>
+          <Switch value={caught} onValueChange={set_caught} trackColor={{ true: colors.accent }} />
         </View>
         <View style={cs.toggleRow}>
-          <Text style={cs.label}>Barrier broken</Text>
+          <Text style={cs.label}>String released cleanly</Text>
+          <Switch value={released_cleanly} onValueChange={set_released_cleanly} trackColor={{ true: colors.accent }} />
+        </View>
+        <View style={cs.toggleRow}>
+          <Text style={cs.label}>Broke string by hand</Text>
+          <Switch value={broke_by_hand} onValueChange={set_broke_by_hand} trackColor={{ true: colors.accent }} />
+        </View>
+        <View style={cs.toggleRow}>
+          <Text style={cs.label}>Barrier broken (+ penalty)</Text>
           <Switch value={barrier_broken} onValueChange={set_barrier_broken} trackColor={{ true: colors.accent }} />
-        </View>
-        <View style={cs.toggleRow}>
-          <Text style={cs.label}>Flag dropped</Text>
-          <Switch value={flag_dropped} onValueChange={set_flag_dropped} trackColor={{ true: colors.accent }} />
-        </View>
-        <View style={cs.field}>
-          <Text style={cs.label}>Horse name</Text>
-          <TextInput
-            style={cs.input}
-            value={horse_name}
-            onChangeText={set_horse_name}
-            placeholder=""
-            placeholderTextColor={colors.muted}
-          />
         </View>
         <View style={cs.field}>
           <Text style={cs.label}>Notes</Text>
@@ -160,15 +198,16 @@ export function CompeteScreen() {
       )}
 
       {(() => {
+        // Personal best is computed from OFFICIAL time (penalties included).
         const _vals = runs
-          .map((r: any) => Number(r.time_seconds))
+          .map((r) => (r.official_time_ms != null ? r.official_time_ms / 1000 : Number(r.total_time)))
           .filter((n: number) => !Number.isNaN(n) && n > 0);
         if (!_vals.length) return null;
         const _best = Math.min(..._vals);
         return (
           <View style={cs.pbBanner}>
-            <Text style={cs.pbLabel}>Personal best</Text>
-            <Text style={cs.pbValue}>{_best}s</Text>
+            <Text style={cs.pbLabel}>Personal best (official)</Text>
+            <Text style={cs.pbValue}>{_best.toFixed(2)}s</Text>
           </View>
         );
       })()}
@@ -182,13 +221,32 @@ export function CompeteScreen() {
       ) : runs.length === 0 ? (
         <Text style={cs.empty}>Nothing logged yet. Log your first breakaway roping run above.</Text>
       ) : (
-        runs.map((run) => (
-          <View key={run.id} style={cs.runCard}>
-            <Text style={cs.runPrimary}>{String(run.time_seconds ?? '—')}</Text>
-            <Text style={cs.runDate}>{new Date(run.created_at).toLocaleDateString()}</Text>
-            {run.notes ? <Text style={cs.runNotes}>{run.notes}</Text> : null}
-          </View>
-        ))
+        runs.map((run) => {
+          const official =
+            run.official_time_ms != null
+              ? formatTime(run.official_time_ms)
+              : run.total_time != null
+                ? String(run.total_time)
+                : '—';
+          const raw = run.raw_time_ms != null ? formatTime(run.raw_time_ms) : null;
+          const hasPenalty =
+            run.barrier_broken &&
+            run.raw_time_ms != null &&
+            run.official_time_ms != null &&
+            run.official_time_ms !== run.raw_time_ms;
+          return (
+            <View key={run.id} style={cs.runCard}>
+              <Text style={cs.runPrimary}>
+                {run.status === 'no_time' || run.status === 'dq' ? (run.status ?? '').replace(/_/g, ' ') : `${official}s`}
+              </Text>
+              {hasPenalty && raw ? (
+                <Text style={cs.runPenalty}>raw {raw}s + barrier penalty</Text>
+              ) : null}
+              <Text style={cs.runDate}>{new Date(run.created_at).toLocaleDateString()}</Text>
+              {run.notes ? <Text style={cs.runNotes}>{run.notes}</Text> : null}
+            </View>
+          );
+        })
       )}
     </ScrollView>
   );
@@ -207,11 +265,6 @@ const cs = StyleSheet.create({
   label: { fontSize: 14, color: colors.text, fontWeight: '600' },
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.control, padding: 12, color: colors.text, fontSize: 15 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
-  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipText: { color: colors.muted, fontSize: 13 },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
   saveBtn: { backgroundColor: colors.accent, borderRadius: radius.control, padding: 15, alignItems: 'center', marginTop: 4 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   disabled: { opacity: 0.6 },
@@ -223,6 +276,7 @@ const cs = StyleSheet.create({
   empty: { color: colors.muted, textAlign: 'center', marginTop: 24, fontSize: 14 },
   runCard: { backgroundColor: colors.card, borderRadius: radius.card, padding: spacing.cardPad, gap: 4, borderWidth: 1, borderColor: colors.border },
   runPrimary: { fontSize: 18, fontWeight: '700', color: colors.text },
+  runPenalty: { fontSize: 12, color: colors.accent, fontWeight: '600' },
   runDate: { fontSize: 12, color: colors.muted },
   runNotes: { fontSize: 14, color: colors.muted, marginTop: 4 },
 });
