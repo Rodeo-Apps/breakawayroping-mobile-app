@@ -17,7 +17,8 @@ module.exports = {
       supportsTablet: true,
       bundleIdentifier: "pro.breakawayroping.app",
       infoPlist: {
-        NSCameraUsageDescription: 'Record your runs so TieDown can analyse them.',
+        ITSAppUsesNonExemptEncryption: false,
+        NSCameraUsageDescription: 'Record your runs so BreakawayRoping can analyse them.',
         NSMicrophoneUsageDescription: 'Capture audio alongside your run video.',
         NSPhotoLibraryUsageDescription: 'Pick a run video to analyse.',
       },
@@ -33,6 +34,9 @@ module.exports = {
     plugins: ['expo-router', 'expo-video'],
     experiments: { typedRoutes: true },
     extra: {
+      eas: {
+        projectId: "d8e86a99-baa5-475a-a3aa-ae3b66a128a2"
+      },
       domain: "breakawayroping.pro",
       eventType: "breakawayroping",
     },
