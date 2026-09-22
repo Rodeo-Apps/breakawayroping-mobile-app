@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { pickImage, uploadImage } from '@/utils/imageUpload';
 import { colors, radius, spacing } from '@/constants/theme';
 
 // Edit-profile form, ported from BarrelConnect. Writes the discipline-agnostic
@@ -18,6 +19,22 @@ export function EditProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const chooseAvatar = async () => {
+    if (!user || uploading) return;
+    try {
+      const img = await pickImage();
+      if (!img) return;
+      setUploading(true);
+      const url = await uploadImage('avatars', user.id, img);
+      setAvatarUrl(url);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e?.message ?? 'Could not upload the image.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -73,7 +90,23 @@ export function EditProfileScreen() {
     <ScrollView style={st.container} contentContainerStyle={st.content}>
       <Field label="Name" value={name} onChangeText={setName} placeholder="Your full name" />
       <Field label="Username" value={username} onChangeText={setUsername} placeholder="username" autoCapitalize="none" />
-      <Field label="Avatar image URL" value={avatarUrl} onChangeText={setAvatarUrl} placeholder="https://upload.wikimedia.org/wikipedia/commons/3/3a/Style_-_Wouldn%27t_It_Be_Nice.png?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=original" autoCapitalize="none" />
+
+      <View style={st.field}>
+        <Text style={st.label}>Avatar</Text>
+        <View style={st.avatarRow}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={st.avatar} />
+          ) : (
+            <View style={[st.avatar, st.avatarPlaceholder]}>
+              <Text style={st.avatarInitial}>{(name.trim()[0] ?? '?').toUpperCase()}</Text>
+            </View>
+          )}
+          <TouchableOpacity style={st.uploadBtn} onPress={chooseAvatar} disabled={uploading}>
+            <Text style={st.uploadText}>{uploading ? 'Uploading…' : 'Choose photo'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <Field label="Avatar image URL (optional)" value={avatarUrl} onChangeText={setAvatarUrl} placeholder="https://cdn.pixabay.com/photo/2016/11/08/15/21/user-1808597_1280.png" autoCapitalize="none" />
       <Field label="Bio" value={bio} onChangeText={setBio} placeholder="Tell the community about your roping..." multiline />
       <Button label={saving ? 'Saving...' : 'Save changes'} onPress={save} disabled={saving} />
     </ScrollView>
@@ -122,4 +155,17 @@ const st = StyleSheet.create({
     fontSize: 15,
   },
   inputMultiline: { minHeight: 100, textAlignVertical: 'top' },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surface },
+  avatarPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { color: colors.muted, fontSize: 28, fontWeight: '800' },
+  uploadBtn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.control,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  uploadText: { color: colors.text, fontWeight: '700', fontSize: 14 },
 });

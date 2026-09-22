@@ -6,6 +6,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { initRevenueCat } from '@/services/iapService';
+import { useFCMMessaging } from '@/hooks/useFCMMessaging';
+import { registerForPushNotificationsAsync, savePushToken } from '@/utils/pushNotifications';
+import { AppStripeProvider } from '@/services/stripe/AppStripeProvider';
 import { colors } from '@/constants/theme';
 
 const queryClient = new QueryClient({
@@ -27,13 +30,36 @@ function AuthGuard() {
   return null;
 }
 
+// Bridges Firebase Cloud Messaging into the app: registers foreground/tap
+// handlers and, once a user is signed in, registers the device for push and
+// persists the token to profiles.push_token. All FCM calls degrade gracefully
+// (no-op) when Firebase is not configured — see utils/pushNotifications.
+function NotificationsBridge() {
+  const { user } = useAuth();
+  useFCMMessaging();
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const token = await registerForPushNotificationsAsync();
+      if (!cancelled && token) await savePushToken(user.id, token);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+  return null;
+}
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
+            <AppStripeProvider>
             <AuthGuard />
+            <NotificationsBridge />
             <StatusBar style="light" />
             <Stack
               screenOptions={{
@@ -75,6 +101,7 @@ export default function RootLayout() {
               <Stack.Screen name="reels" options={{ title: 'Reels' }} />
               <Stack.Screen name="go-live" options={{ title: 'Go live' }} />
             </Stack>
+            </AppStripeProvider>
           </AuthProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

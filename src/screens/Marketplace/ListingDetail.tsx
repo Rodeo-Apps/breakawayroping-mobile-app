@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMarketplacePayment } from '@/services/stripe/useMarketplacePayment';
+import { computeMarketplaceFees, formatCents, isStripeConfigured } from '@/services/stripe/marketplaceFees';
 import { colors, radius, spacing } from '@/constants/theme';
 
 // Marketplace listing detail, ported from BarrelConnect. Shows full listing,
@@ -29,6 +32,8 @@ type Detail = {
   location_state: string | null;
   status: string;
   created_at: string;
+  payment_type: string | null;
+  fee_split: boolean | null;
 };
 
 type Seller = { id: string; name: string | null; username: string | null; avatar_url: string | null };
@@ -37,6 +42,7 @@ export function ListingDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : undefined;
   const { user } = useAuth();
+  const { buyListing, loading: buying } = useMarketplacePayment();
   const [listing, setListing] = useState<Detail | null>(null);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -73,6 +79,22 @@ export function ListingDetailScreen() {
     load();
   }, [load]);
 
+  const handleBuy = async () => {
+    if (!listing || buying) return;
+    if (!user) {
+      Alert.alert('Sign in required', 'Please sign in to buy this item.');
+      return;
+    }
+    const result = await buyListing({ listingId: listing.id });
+    if (result.cancelled) return;
+    if (result.success) {
+      Alert.alert('Purchase complete', 'Your payment was successful.');
+      load();
+    } else {
+      Alert.alert('Payment failed', result.message ?? 'Please try again.');
+    }
+  };
+
   const toggleSave = async () => {
     if (!user || !id) return;
     if (saved) {
@@ -100,6 +122,10 @@ export function ListingDetailScreen() {
   }
 
   const isOwner = user?.id === listing.user_id;
+  const isStripeListing = listing.payment_type === 'stripe' && listing.status === 'active';
+  const canBuyInApp = isStripeListing && isStripeConfigured();
+  const wantsStripeButUnconfigured = isStripeListing && !isStripeConfigured();
+  const fees = computeMarketplaceFees(listing.price, !!listing.fee_split);
 
   return (
     <ScrollView style={st.container} contentContainerStyle={st.content}>
@@ -141,6 +167,37 @@ export function ListingDetailScreen() {
             <Text style={st.muted}>View seller profile</Text>
           </View>
         </TouchableOpacity>
+      ) : null}
+
+      {!isOwner && canBuyInApp ? (
+        <View style={st.buyBox}>
+          <Text style={st.buyTitle}>Buy it now</Text>
+          <View style={st.feeRow}>
+            <Text style={st.muted}>Item</Text>
+            <Text style={st.feeValue}>{formatCents(fees.basePriceCents)}</Text>
+          </View>
+          <View style={st.feeRow}>
+            <Text style={st.muted}>
+              Processing fee{listing.fee_split ? ' (split)' : ''}
+            </Text>
+            <Text style={st.feeValue}>{formatCents(fees.buyerFeeCents)}</Text>
+          </View>
+          <View style={[st.feeRow, st.feeTotalRow]}>
+            <Text style={st.feeTotalLabel}>You pay</Text>
+            <Text style={st.feeTotalValue}>{formatCents(fees.buyerTotalCents)}</Text>
+          </View>
+          <TouchableOpacity
+            style={[st.buyBtn, buying && st.disabled]}
+            onPress={handleBuy}
+            disabled={buying}
+          >
+            <Text style={st.buyBtnText}>{buying ? 'Processing…' : 'Buy now'}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {!isOwner && wantsStripeButUnconfigured ? (
+        <Text style={st.muted}>In-app checkout is coming soon for this listing.</Text>
       ) : null}
 
       {!isOwner ? (
@@ -194,6 +251,29 @@ const st = StyleSheet.create({
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface },
   avatarPlaceholder: { backgroundColor: colors.surface },
   sellerName: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  buyBox: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: spacing.cardPad,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    gap: 8,
+  },
+  buyTitle: { color: colors.text, fontSize: 16, fontWeight: '800' },
+  feeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  feeValue: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  feeTotalRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 2 },
+  feeTotalLabel: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  feeTotalValue: { color: colors.accent, fontSize: 16, fontWeight: '800' },
+  buyBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.control,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  buyBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  disabled: { opacity: 0.5 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 4 },
   primary: {
     flex: 1,

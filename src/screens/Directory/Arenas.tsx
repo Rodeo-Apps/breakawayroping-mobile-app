@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpac
 import { Linking } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
+import ArenaMapView from '@/screens/Directory/components/ArenaMapView';
 import { colors, radius, spacing } from '@/constants/theme';
 
 // Arena directory, ported from BarrelConnect. Reads the `arenas` table.
@@ -18,17 +19,20 @@ type Arena = {
   amenities: string[] | null;
   rating: number | null;
   description: string | null;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export function ArenasScreen() {
   const [arenas, setArenas] = useState<Arena[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [showMap, setShowMap] = useState(false);
 
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('arenas')
-      .select('id, name, city, state, phone, website, arena_type, amenities, rating, description')
+      .select('id, name, city, state, phone, website, arena_type, amenities, rating, description, latitude, longitude')
       .eq('is_active', true)
       .order('rating', { ascending: false, nullsFirst: false })
       .limit(100);
@@ -68,7 +72,24 @@ export function ArenasScreen() {
           placeholder="Search arenas by name or city..."
           placeholderTextColor={colors.muted}
         />
+        <View style={st.toggle}>
+          <TouchableOpacity
+            style={[st.toggleBtn, !showMap && st.toggleActive]}
+            onPress={() => setShowMap(false)}
+          >
+            <Text style={[st.toggleText, !showMap && st.toggleTextActive]}>List</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[st.toggleBtn, showMap && st.toggleActive]}
+            onPress={() => setShowMap(true)}
+          >
+            <Text style={[st.toggleText, showMap && st.toggleTextActive]}>Map</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+      {showMap ? (
+        <ArenaMapView arenas={filtered} />
+      ) : (
       <FlatList
         data={filtered}
         keyExtractor={(a) => a.id}
@@ -119,6 +140,7 @@ export function ArenasScreen() {
           </View>
         )}
       />
+      )}
     </View>
   );
 }
@@ -126,7 +148,20 @@ export function ArenasScreen() {
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
-  header: { padding: spacing.screenX },
+  header: { padding: spacing.screenX, gap: 10 },
+  toggle: { flexDirection: 'row', gap: 8 },
+  toggleBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  toggleActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  toggleText: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  toggleTextActive: { color: '#fff' },
   search: {
     backgroundColor: colors.card,
     borderWidth: 1,

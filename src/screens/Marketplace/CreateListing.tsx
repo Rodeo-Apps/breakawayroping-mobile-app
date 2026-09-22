@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { pickImage, uploadImage, type PickedImage } from '@/utils/imageUpload';
 import { colors, radius, spacing } from '@/constants/theme';
+
+const MAX_PHOTOS = 5;
 
 const CATEGORIES = ['horse', 'tack', 'trailer', 'service'] as const;
 
@@ -16,7 +19,18 @@ export function CreateListingScreen() {
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>('tack');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [photos, setPhotos] = useState<PickedImage[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const addPhoto = async () => {
+    if (photos.length >= MAX_PHOTOS) return;
+    const img = await pickImage();
+    if (img) setPhotos((prev) => [...prev, img]);
+  };
+
+  const removePhoto = (uri: string) => {
+    setPhotos((prev) => prev.filter((p) => p.uri !== uri));
+  };
 
   const submit = async () => {
     if (!user) return;
@@ -30,21 +44,43 @@ export function CreateListingScreen() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('marketplace_listings').insert({
-      user_id: user.id,
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      price: priceNum,
-      location_city: city.trim() || null,
-      location_state: state.trim() || null,
-      status: 'active',
-    });
-    setSaving(false);
-    if (error) {
-      Alert.alert('Could not post', error.message);
+    const { data: created, error } = await supabase
+      .from('marketplace_listings')
+      .insert({
+        user_id: user.id,
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        price: priceNum,
+        location_city: city.trim() || null,
+        location_state: state.trim() || null,
+        status: 'active',
+      })
+      .select('id')
+      .single();
+    if (error || !created) {
+      setSaving(false);
+      Alert.alert('Could not post', error?.message ?? 'Please try again.');
       return;
     }
+
+    // Upload photos to the listing-photos bucket and record them. A photo upload
+    // failure does not block the listing — it is already created at this point.
+    const listingId = (created as { id: string }).id;
+    try {
+      let sortOrder = 0;
+      for (const photo of photos) {
+        const url = await uploadImage('listing-photos', user.id, photo);
+        await supabase
+          .from('listing_photos')
+          .insert({ listing_id: listingId, photo_url: url, sort_order: sortOrder });
+        sortOrder += 1;
+      }
+    } catch (e: any) {
+      Alert.alert('Listing posted', 'The listing was created, but some photos failed to upload.');
+    }
+
+    setSaving(false);
     router.back();
   };
 
@@ -52,6 +88,23 @@ export function CreateListingScreen() {
     <ScrollView style={st.container} contentContainerStyle={st.content}>
       <Text style={st.label}>Title</Text>
       <TextInput style={st.input} value={title} onChangeText={setTitle} placeholder="e.g. Breakaway rope, like new" placeholderTextColor={colors.muted} />
+
+      <Text style={st.label}>Photos ({photos.length}/{MAX_PHOTOS})</Text>
+      <View style={st.photoRow}>
+        {photos.map((p) => (
+          <TouchableOpacity key={p.uri} onPress={() => removePhoto(p.uri)} style={st.photoWrap}>
+            <Image source={{ uri: p.uri }} style={st.photo} />
+            <View style={st.photoRemove}>
+              <Text style={st.photoRemoveText}>×</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+        {photos.length < MAX_PHOTOS ? (
+          <TouchableOpacity style={st.addPhoto} onPress={addPhoto}>
+            <Text style={st.addPhotoText}>+ Add</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       <Text style={st.label}>Category</Text>
       <View style={st.chips}>
@@ -109,6 +162,32 @@ const st = StyleSheet.create({
   },
   textarea: { minHeight: 110, textAlignVertical: 'top' },
   row: { flexDirection: 'row', gap: 12 },
+  photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  photoWrap: { position: 'relative' },
+  photo: { width: 72, height: 72, borderRadius: radius.control, backgroundColor: colors.surface },
+  photoRemove: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoRemoveText: { color: '#fff', fontSize: 15, fontWeight: '800', lineHeight: 17 },
+  addPhoto: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPhotoText: { color: colors.muted, fontSize: 13, fontWeight: '700' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },

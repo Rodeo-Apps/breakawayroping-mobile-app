@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  AgoraService,
+  fetchAgoraToken,
+  generateChannelName,
+  isAgoraConfigured,
+  RtcSurfaceView,
+} from '@/utils/agoraHelper';
 import { colors, radius, spacing, app } from '@/constants/theme';
 
 // Go Live, ported from BarrelConnect. Lists active `live_sessions` and lets the
@@ -26,6 +33,41 @@ export function GoLiveScreen() {
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const agoraRef = useRef<AgoraService | null>(null);
+  const agoraReady = isAgoraConfigured();
+
+  const stopBroadcast = useCallback(async () => {
+    if (agoraRef.current) {
+      await agoraRef.current.destroy();
+      agoraRef.current = null;
+    }
+    setStreaming(false);
+  }, []);
+
+  const startBroadcast = useCallback(async (sessionId: string) => {
+    if (!agoraReady) return; // Graceful degradation: session tracked without live video.
+    try {
+      const channel = generateChannelName(sessionId);
+      const service = new AgoraService();
+      await service.initialize();
+      const { token, uid } = await fetchAgoraToken(channel, 'publisher');
+      await service.joinChannel(channel, token, uid, true);
+      agoraRef.current = service;
+      setStreaming(true);
+    } catch (e: any) {
+      await stopBroadcast();
+      Alert.alert('Live video unavailable', e?.message ?? 'Could not start the camera stream.');
+    }
+  }, [agoraReady, stopBroadcast]);
+
+  useEffect(() => {
+    return () => {
+      // Clean up the engine if the screen unmounts mid-broadcast.
+      agoraRef.current?.destroy();
+      agoraRef.current = null;
+    };
+  }, []);
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -64,8 +106,10 @@ export function GoLiveScreen() {
     }
     setTitle('');
     if (data) {
-      setMySession(data as Live);
+      const created = data as Live;
+      setMySession(created);
       load();
+      startBroadcast(created.id);
     }
   };
 
@@ -76,6 +120,7 @@ export function GoLiveScreen() {
       .from('live_sessions')
       .update({ status: 'ended', ended_at: new Date().toISOString() })
       .eq('id', mySession.id);
+    await stopBroadcast();
     setBusy(false);
     setMySession(null);
     load();
@@ -94,9 +139,18 @@ export function GoLiveScreen() {
       <View style={st.composer}>
         {mySession ? (
           <View style={st.liveCard}>
+            {streaming ? (
+              <RtcSurfaceView style={st.preview} canvas={{ uid: 0 }} />
+            ) : null}
             <Text style={st.liveBadge}>● LIVE</Text>
             <Text style={st.liveTitle}>{mySession.title}</Text>
             <Text style={st.muted}>{mySession.viewer_count ?? 0} watching</Text>
+            {!agoraReady ? (
+              <Text style={st.muted}>
+                Live video isn&apos;t configured yet — your session is visible to viewers, but the
+                camera stream needs EXPO_PUBLIC_AGORA_APP_ID.
+              </Text>
+            ) : null}
             <TouchableOpacity style={st.endBtn} onPress={endLive} disabled={busy}>
               <Text style={st.endText}>End broadcast</Text>
             </TouchableOpacity>
@@ -162,6 +216,7 @@ const st = StyleSheet.create({
     borderColor: colors.accent,
     gap: 6,
   },
+  preview: { width: '100%', height: 220, borderRadius: radius.control, backgroundColor: '#000', marginBottom: 4 },
   liveBadge: { color: colors.danger, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   liveTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
   endBtn: {
