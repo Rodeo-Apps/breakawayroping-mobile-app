@@ -1,54 +1,13 @@
 -- Ported from BarrelConnect migration 013_video_analyses_table.sql
--- Adapted for breakawayroping-mobile-app (barrel-specific columns removed).
+-- Adapted for breakawayroping-mobile-app.
 -- Idempotent; safe to re-run. Runs AFTER breakaway base migrations 001-007.
-
--- Fix: "Could not find the table 'public.video_analyses' in the schema cache"
--- Creates video_analyses and video_comparisons tables for run video analysis.
 --
--- Run in Supabase Dashboard -> SQL Editor.
+-- NOTE: breakawayroping already ships its own `video_analyses` table
+-- (007_ai_video_analysis.sql), which is the discipline-correct AI analysis
+-- store for this app. We therefore DO NOT clone BarrelConnect's incompatible
+-- `video_analyses` schema. This migration only adds `video_comparisons`
+-- (side-by-side comparison feature), referencing the existing video_analyses.
 
--- video_analyses: stores uploaded videos and AI analysis results
-CREATE TABLE IF NOT EXISTS public.video_analyses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  run_id UUID REFERENCES public.runs(id) ON DELETE SET NULL,
-  video_url TEXT NOT NULL,
-  analysis_status TEXT NOT NULL DEFAULT 'pending',
-  video_duration_seconds DOUBLE PRECISION,
-  ai_insights JSONB,
-  performance_metrics JSONB,
-  key_moments JSONB,
-  processed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_video_analyses_user_id ON public.video_analyses(user_id);
-CREATE INDEX IF NOT EXISTS idx_video_analyses_run_id ON public.video_analyses(run_id);
-CREATE INDEX IF NOT EXISTS idx_video_analyses_created_at ON public.video_analyses(created_at DESC);
-
-ALTER TABLE public.video_analyses ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Users can view own video analyses" ON public.video_analyses;
-CREATE POLICY "Users can view own video analyses"
-  ON public.video_analyses FOR SELECT
-  USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can insert own video analyses" ON public.video_analyses;
-CREATE POLICY "Users can insert own video analyses"
-  ON public.video_analyses FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can update own video analyses" ON public.video_analyses;
-CREATE POLICY "Users can update own video analyses"
-  ON public.video_analyses FOR UPDATE
-  USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Users can delete own video analyses" ON public.video_analyses;
-CREATE POLICY "Users can delete own video analyses"
-  ON public.video_analyses FOR DELETE
-  USING (auth.uid() = user_id);
-
--- video_comparisons: stores side-by-side video comparisons
 CREATE TABLE IF NOT EXISTS public.video_comparisons (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

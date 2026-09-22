@@ -14,11 +14,23 @@ own base migrations (`001`–`007`) and never overwrite them by filename.
   `drop policy if exists` → `create policy`, `create index if not exists`), so
   re-running against a database that already has this app's base tables is safe:
   existing tables are skipped, missing feature tables are created.
-- **Discipline adaptation:** BarrelConnect's barrel-specific `runs` table had its
-  `barrel1_time` / `barrel2_time` / `barrel3_time` split columns removed, leaving
-  a generic, discipline-neutral `runs` table. This app's own discipline log
-  remains `breakaway_runs` (created in `003`).
-- **Validation:** all 101 ported files parse cleanly with the PostgreSQL grammar
+- **Discipline adaptation (runs → breakaway_runs):** BarrelConnect's `runs` table
+  is barrel-specific and is NOT cloned into this app. Breakaway roping's own
+  discipline log is `breakaway_runs` (created in `003`), whose columns match the
+  sport: `time_seconds`, `catch_type`, `barrier_broken`, `flag_dropped`,
+  `horse_name`, `created_at` (no `run_date`, no `horse_id`). Accordingly:
+  - Deleted `1006_runs_table.sql` (would have cloned barrel `runs`) and
+    `1011_runs_horse_fk.sql` (breakaway_runs has no `horse_id`; it uses `horse_name`).
+  - `1013` no longer clones BarrelConnect's incompatible `video_analyses` (this app
+    already ships its own in `007`); it now only adds `video_comparisons` on top of
+    the existing `video_analyses`.
+  - Repointed every feature FK/trigger/policy to `breakaway_runs`: `ai_run_insights`
+    (`1010`), the training-streak trigger + backfill (`1085`, using
+    `created_at::date` since there is no `run_date`), the weekly-leaderboard points
+    trigger (`1090`), the authenticated-read policy (`1049`), and the delete-account
+    data function (`1081`). AI-insights, streaks, and leaderboards therefore operate
+    on real breakaway runs with no parallel `runs` table.
+- **Validation:** all 99 ported files parse cleanly with the PostgreSQL grammar
   (`pglast`). SQL parsing ≠ live apply — they still need to be applied against the
   shared Supabase project and smoke-tested (no database was available in this
   session to apply them).
@@ -84,11 +96,13 @@ rule-set integration. Each must be re-implemented against this app's architectur
 
 ## Integration follow-ups (call out for the next session)
 
-- The ported feature tables that reference the generic `runs` table
-  (`ai_run_insights`, `user_streaks`, weekly leaderboards, `video_analyses.run_id`)
-  will need either (a) this app's `Compete` flow to also write a row into `runs`,
-  or (b) those tables/queries repointed to `breakaway_runs`, so the AI-insights,
-  streaks, and leaderboard features operate on real breakaway runs.
+- The ported feature tables now reference `breakaway_runs` directly
+  (`ai_run_insights.run_id`, the `user_streaks` and weekly-leaderboard triggers).
+  Because those triggers fire `AFTER INSERT ON public.breakaway_runs`, the Phase 2
+  client `Compete` flow that logs a breakaway run will automatically drive streaks
+  and leaderboard points — no parallel `runs` table and no dual-write needed.
+  When wiring the Phase 2 UI, confirm the run-logging insert targets
+  `breakaway_runs` (it already does today) so these features light up.
 - Some ported migrations `drop policy … / create policy …` on tables this app
   also defines (e.g. `posts`, `follows`, `notifications`); after applying, confirm
   the resulting RLS matches intended behavior for this app's column set.

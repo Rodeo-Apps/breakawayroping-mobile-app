@@ -30,7 +30,7 @@ BEGIN
 
   DELETE FROM public.ai_run_insights WHERE user_id = p_user_id;
 
-  DELETE FROM public.runs WHERE user_id = p_user_id;
+  DELETE FROM public.breakaway_runs WHERE user_id = p_user_id;
 END;
 $$;
 

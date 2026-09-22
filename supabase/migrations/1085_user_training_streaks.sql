@@ -45,7 +45,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_run_date DATE := COALESCE(NEW.run_date, (NEW.created_at AT TIME ZONE 'UTC')::date, CURRENT_DATE);
+  v_run_date DATE := COALESCE((NEW.created_at AT TIME ZONE 'UTC')::date, CURRENT_DATE);
   v_last     DATE;
   v_current  INTEGER;
   v_longest  INTEGER;
@@ -95,9 +95,9 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_update_training_streak ON public.runs;
+DROP TRIGGER IF EXISTS trg_update_training_streak ON public.breakaway_runs;
 CREATE TRIGGER trg_update_training_streak
-  AFTER INSERT ON public.runs
+  AFTER INSERT ON public.breakaway_runs
   FOR EACH ROW EXECUTE FUNCTION public.update_training_streak();
 
 -- ----------------------------------------------------------------------------
@@ -108,9 +108,9 @@ CREATE TRIGGER trg_update_training_streak
 -- the largest island as their longest streak.
 -- ----------------------------------------------------------------------------
 WITH distinct_days AS (
-  SELECT DISTINCT user_id, run_date AS day
-  FROM public.runs
-  WHERE user_id IS NOT NULL AND run_date IS NOT NULL
+  SELECT DISTINCT user_id, (created_at AT TIME ZONE 'UTC')::date AS day
+  FROM public.breakaway_runs
+  WHERE user_id IS NOT NULL AND created_at IS NOT NULL
 ),
 islands AS (
   SELECT

@@ -7,7 +7,7 @@
 
 CREATE TABLE IF NOT EXISTS public.ai_run_insights (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  run_id UUID NOT NULL REFERENCES public.runs(id) ON DELETE CASCADE,
+  run_id UUID NOT NULL REFERENCES public.breakaway_runs(id) ON DELETE CASCADE,
   user_id UUID NOT NULL,
   insight_text TEXT NOT NULL,
   insight_type TEXT NOT NULL DEFAULT 'general',

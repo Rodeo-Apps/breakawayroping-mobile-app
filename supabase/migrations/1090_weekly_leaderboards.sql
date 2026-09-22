@@ -106,9 +106,9 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_award_points_on_run ON public.runs;
+DROP TRIGGER IF EXISTS trg_award_points_on_run ON public.breakaway_runs;
 CREATE TRIGGER trg_award_points_on_run
-  AFTER INSERT ON public.runs
+  AFTER INSERT ON public.breakaway_runs
   FOR EACH ROW
   EXECUTE FUNCTION public.award_points_on_run();
 
