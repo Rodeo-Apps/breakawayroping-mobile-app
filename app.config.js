@@ -5,17 +5,20 @@ module.exports = {
     name: "Breakaway Roping",
     slug: "breakawayroping",
     scheme: "breakawayroping",
-    version: '0.1.0',
+    version: '1.0.0',
     orientation: 'portrait',
     userInterfaceStyle: 'dark',
     newArchEnabled: true,
+    icon: './assets/icon.png',
     splash: {
+      image: './assets/splash.png',
       resizeMode: 'contain',
       backgroundColor: "#140b1c",
     },
     ios: {
       supportsTablet: true,
       bundleIdentifier: "pro.breakawayroping.app",
+      buildNumber: "1",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription: 'Record your runs so BreakawayRoping can analyse them.',
@@ -25,12 +28,14 @@ module.exports = {
     },
     android: {
       package: "pro.breakawayroping.app",
+      versionCode: 1,
       adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: "#140b1c",
       },
       edgeToEdgeEnabled: true,
     },
-    web: { bundler: 'metro', output: 'static' },
+    web: { bundler: 'metro', output: 'static', favicon: './assets/favicon.png' },
     plugins: ['expo-router', 'expo-video'],
     experiments: { typedRoutes: true },
     extra: {
@@ -39,6 +44,13 @@ module.exports = {
       },
       domain: "breakawayroping.pro",
       eventType: "breakawayroping",
+      // Legal + support URLs (from breakawayroping.pro). Referenced by the
+      // in-app Support/Settings screens and required for store submission.
+      privacyUrl: "https://www.breakawayroping.pro/privacy",
+      termsUrl: "https://www.breakawayroping.pro/terms",
+      supportUrl: "https://www.breakawayroping.pro/support",
+      refundUrl: "https://www.breakawayroping.pro/refund",
+      supportEmail: "support@breakawayroping.pro",
     },
   },
 };
